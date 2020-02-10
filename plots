@@ -1,0 +1,6 @@
+plot 'Exact_U.dat' with points 
+replot 'Exact_V.dat' with points 
+replot 'Profiles_U.dat' with lines
+replot 'Profiles_V.dat' with lines
+replot 'Profiles_HLPA_U.dat' with lines
+replot 'Profiles_HLPA_V.dat' with lines

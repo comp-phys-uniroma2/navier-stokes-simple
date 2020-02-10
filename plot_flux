@@ -1,0 +1,2 @@
+coef=0.05
+plot 'Domain_all.dat' using 1:2:(coef*$3):(coef*$4) with vectors
