@@ -29,17 +29,17 @@
    integer, parameter, public :: Nvars = 4
    ! Reynolds number
    real(dp), public :: Re, Gam
-   real(dp), public :: alfa, beta
+   real(dp), public :: alfa, beta, omega
    integer, public :: Poiss_iter
    real(dp), public :: Poiss_acc
    logical, public :: rhiechow = .true.
 
    ! dimensionless sides
-   real(dp) :: SLx = 3.0_dp
+   real(dp) :: SLx = 1.0_dp
    real(dp) :: SLy = 1.0_dp
 
    ! Grid definition  
-   integer, public ::  NXmax = 363   !numero nodi in x    
+   integer, public ::  NXmax = 121   !numero nodi in x    
    integer, public ::  NYmax = 121   !numero nodi in y
    integer, public ::  NXmaxC   !numero dei dof in x
    integer, public ::  NYmaxC   !numero dei dof in y
@@ -150,10 +150,10 @@
        close(44)
     endif
 
-    !call init_forced_cavity()
+    call init_forced_cavity()
 
-    call init_constant_flux()
-    call init_obstacle()
+    !call init_constant_flux()
+    !call init_obstacle()
 
   end subroutine init_all_cavity
 

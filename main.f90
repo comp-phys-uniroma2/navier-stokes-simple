@@ -49,6 +49,7 @@ Program Main
   filename = ''
   alfa = 0.85_dp
   beta = 0.10_dp
+  omega = 1.00_dp
   Poiss_iter = 500
   Poiss_acc = 1.d-7
   ch = 'Y'
@@ -65,6 +66,8 @@ Program Main
       read(arg(6:),*) alfa
     elseif (arg(1:5)=='beta=') then
       read(arg(6:),*) beta 
+    elseif (arg(1:6)=='omega=') then
+      read(arg(7:),*) omega 
     elseif (arg(1:11)=='Poiss_iter=') then
       read(arg(12:),*) Poiss_iter 
     elseif (arg(1:10)=='Poiss_acc=') then
@@ -84,6 +87,7 @@ Program Main
   print*, 'Re=',Re
   print*, 'alfa=',alfa
   print*, 'beta=',beta
+  print*, 'omega=',omega
   print*, 'Poiss_acc=',Poiss_acc 
   print*, 'Poiss_iter=',Poiss_iter 
   print*, 'Rhie&Chow=',ch 

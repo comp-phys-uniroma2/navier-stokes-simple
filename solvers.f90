@@ -184,10 +184,6 @@ contains
          Del_n  = Yc(j+1)-Yc(j)  
          !----------------------------------------------------
 
-         if (obstacle(i,j)) then
-              F(i,j,1)=0.0_dp
-              F(i,j,2)=0.0_dp
-         endif
 
          ! upwind differencing (all other will be included into the source term) 
 
@@ -264,9 +260,6 @@ contains
 
         VOL = DX * DY   !volume(superficie) di una cella
 
-        if (obstacle(i,j)) then
-             F(i,j,4)=0.0_dp
-        endif
 
         ! %% Usare interpolazioni generali--------------------------------------
         ! Pe = ((F(i+1,j,4)*(X(i)-Xc(i)) + (Xc(i+1)-X(i))* F(i,j,4))/Del_e
@@ -297,14 +290,13 @@ contains
     !---------------------------- under-relaxation -----------------------------
     ! uij(new) = (1- alfa)* uij(old) + alfa* Ap^-1 [Sp + Te uij(new)] 
     ! Ap/alfa uij(new) = [Sp + (1-alfa)*Ap/alfa uij(old) ] + Te uij(new)
-
-    ! Note: Rescaling Ap by 1/alfa 
+    !
+    ! Note: This is a relaxation on the outer iteration loop 
+    !
     Ap(:,:) = Ap(:,:) / Alfa
 
     Sp(:,:,1) = Sp(:,:,1) + (1.0_dp - Alfa )* Ap(:,:)*F(:,:,1) 
     Sp(:,:,2) = Sp(:,:,2) + (1.0_dp - Alfa )* Ap(:,:)*F(:,:,2) 
-
-
     !---------------------------------------------------------------------------
     write(*,*)'solve U'
     call apply_constrain(1)
@@ -314,6 +306,7 @@ contains
        
     do while ( abs(Res_sum_After) > 1.d-12 .and. niter < 50)
        call TDMA(1)
+       call apply_constrain(1)
        call Convergence_Criteria(1,Res_sum_After)
        niter= niter + 1
     enddo
@@ -329,6 +322,7 @@ contains
 
     do while ( abs(Res_sum_After) > 1.d-12 .and. niter < 50)
        call TDMA(2)
+       call apply_constrain(2)
        call Convergence_Criteria(2,Res_sum_After)
        niter= niter + 1
     end do
@@ -349,13 +343,16 @@ contains
     real(dp) :: DYc_n, S_n, VOL_n, APV_n, DPl_n, DPy_n, V_n
     real(dp) :: Dx, Dy, Vol, Summ1, Summ2
 
-    where (obstacle)
-      invAp = 0.0_dp
-      F(:,:,1) = 0.0_dp
-      F(:,:,2) = 0.0_dp
-    elsewhere
-      invAp = 1.0_dp/Ap
-    endwhere
+    Do j=2,NYmax
+      Do i=2,NXmax
+        if (obstacle(i,j)) then
+           invAp(i,j) = 0.d0
+        else
+           invAp(i,j) = 1.d0/Ap(i,j)
+        endif
+      enddo
+    enddo   
+   
     
     !----------------------------------------------------------------------
     !1./AP coefficient involved in the derivation of the pressure 
@@ -391,10 +388,13 @@ contains
          !--------------------------------------------------------------
          Con_e(i,j) =   U_e  * S_e
 
-         if (obstacle(i,j)) then
+         if (.not.obstacle(i,j)) then
+           if (obstacle(i+1,j)) Con_e(i,j) = 0.0_dp
+           if (obstacle(i-1,j)) Con_e(i-1,j) = 0.0_dp
+         else
            Con_e(i,j) = 0.0_dp
            Con_e(i-1,j) = 0.0_dp
-         end if 
+         end if
 
       enddo
     enddo
@@ -431,9 +431,12 @@ contains
         !----------------------------------------------------------- 
         Con_n(i,j) =   V_n  * S_n 
         
-        if (obstacle(i,j)) then
+        if (.not.obstacle(i,j)) then
+          if (obstacle(i+1,j)) Con_n(i,j) = 0.0_dp
+          if (obstacle(i-1,j)) Con_n(i-1,j) = 0.0_dp
+        else
           Con_n(i,j) = 0.0_dp
-          Con_n(i,j-1) = 0.0_dp
+          Con_n(i-1,j) = 0.0_dp
         end if
       enddo
     enddo
@@ -454,7 +457,7 @@ contains
          S_e   =  Y(j) - Y(j-1)
          S_n   =  X(i) - X(i-1)
              
-        ! %% Usare interpolazioni generali-----------------------------------------------------------
+         ! %% Usare interpolazioni generali-----------------------------------------------------------
          ! Ae(i,j) = S_e * S_e* ((invAp(i+1,j)*(X(i)-Xc(i)) + (Xc(i+1)-X(i))*invAp(i,j))/Del_e
          ! Aw(i,j) = S_e * S_e* ((invAp(i,j)*(X(i-1)-Xc(i-1)) + (Xc(i)-Xc(i-1))*invAp(i-1,j))/Del_w
          ! An(i,j) = S_n * S_n* ((invAp(i,j+1)* (Y(j)- Yc(J))) + (Yc(j+1)-Y(j))*invAp(i,j))/Del_n
@@ -477,15 +480,19 @@ contains
       enddo
     enddo
     !-------------------------------------------------------------------
+    ! Under-relaxation (cannot work here!)
+    !Ap(:,:) = Ap(:,:) / Omega
+    !Sp(:,:,3) = Sp(:,:,4) + (1.0_dp - Omega )* Ap(:,:)*F(:,:,3) 
     !-------------------------------------------------------------------
     write(*,*) 'solve PP'
 
     call apply_constrain(3)
     Res_sum_After=1.0_dp
     niter = 0
-    
+   
     do while ( abs(Res_sum_After) > Poiss_acc .and. niter < Poiss_iter ) 
        call TDMA(3)
+       call apply_constrain(3)
        call Convergence_Criteria(3,Res_sum_After)
        niter = niter + 1
     enddo
@@ -516,11 +523,12 @@ contains
         PPs = 0.5_dp * ( F(i,j,3) + F(i,j-1,3) )
 
         ! override with a Neumann BC near obstacles
-        if ( .not.obstacle(i,j) .and. obstacle(i+1,j) ) PPe = F(i,j,3)
-        if ( .not.obstacle(i,j) .and. obstacle(i-1,j) ) PPw = F(i,j,3)
-        if ( .not.obstacle(i,j) .and. obstacle(i,j+1) ) PPn = F(i,j,3)
-        if ( .not.obstacle(i,j) .and. obstacle(i,j-1) ) PPs = F(i,j,3) 
-
+        if ( .not.obstacle(i,j) ) then 
+           if (obstacle(i+1,j)) PPe = F(i,j,3)
+           if (obstacle(i-1,j)) PPw = F(i,j,3)
+           if (obstacle(i,j+1)) PPn = F(i,j,3)
+           if (obstacle(i,j-1)) PPs = F(i,j,3) 
+        end if
 
         ! Update velocities
         ! u(k+1) = u(*) - dP/dx  
@@ -529,11 +537,11 @@ contains
            F(i,j,1) = F(i,j,1) - (PPe - PPw) * invAp(i,j) * Dy 
            F(i,j,2) = F(i,j,2) - (PPn - PPs) * invAp(i,j) * Dx
       
-           ! Use a relaxation of beta on pressure loops
+           ! Use a relaxation of beta this is also a outer loop relaxation 
            ! p(k+1) = p(k) + p' 
            ! p(k+1) = (1-beta) p(k) + beta (p(k) + p') = p(k) + beta p'
            !
-           F(i,j,4) = F(i,j,4) + beta *   F(i,j,3)
+           F(i,j,4) = F(i,j,4) + beta * F(i,j,3)
            
         end if
  
@@ -586,7 +594,7 @@ contains
              An(i,j) = 0.0_dp
              As(i,j) = 0.0_dp
              F(i,j,nf) = 0.0_dp
-             Sp(i,j,nf) = F(i,j,nf)
+             Sp(i,j,nf) = 0.0_dp !F(i,j,nf)
           end if   
        end do
     end do
